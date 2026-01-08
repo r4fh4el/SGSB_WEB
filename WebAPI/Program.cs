@@ -219,6 +219,9 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "WebApi", Version = "v1" });
 });
 
+// Configurar Kestrel para escutar em 0.0.0.0 (aceitar conexões externas)
+builder.WebHost.UseUrls("http://0.0.0.0:5204");
+
 var app = builder.Build();
 app.UseWebSockets();
 //// CORS - Configurado para aceitar requisições do SGSB_INSP
