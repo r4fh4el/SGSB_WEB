@@ -1,0 +1,483 @@
+@page "/CalculoAutomatico/Index"
+
+@using SGSB.Web.Data
+@inject BarragemService BarragemService
+@inject HttpClient http
+@using Model
+@using Radzen.Blazor
+@using System.Text.Json
+@inject NavigationManager NavigationManager
+
+<PageTitle>Cálculo Automático</PageTitle>
+
+<RadzenCard class="mb-4">
+    <RadzenStack Gap="1rem">
+        <RadzenRow>
+            <RadzenColumn Size="12">
+                <RadzenFieldset Text="Seleção de Barragem">
+                    <RadzenStack Gap="1rem">
+                        <RadzenLabel Text="Barragem"></RadzenLabel>
+                        <RadzenDropDown @bind-Value="@idBarragemSelecionada" 
+                                       Placeholder="Selecione a barragem" 
+                                       TextProperty="Nome" 
+                                       ValueProperty="Id" 
+                                       Data="@lstBarragem"
+                                       Change="@OnBarragemChangedWrapper">
+                        </RadzenDropDown>
+                        <RadzenButton Text="Atualizar Cálculos" 
+                                     ButtonStyle="ButtonStyle.Primary" 
+                                     Icon="refresh"
+                                     Click="@AtualizarCalculos" 
+                                     Disabled="@(idBarragemSelecionada == 0 || carregando)" />
+                    </RadzenStack>
+                </RadzenFieldset>
+            </RadzenColumn>
+        </RadzenRow>
+    </RadzenStack>
+</RadzenCard>
+
+@if (carregando)
+{
+    <RadzenCard>
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+        <RadzenLabel Text="Carregando cálculos..." />
+    </RadzenCard>
+}
+
+@if (erro != null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Title="Erro">
+        @erro
+    </RadzenAlert>
+}
+
+@if (dadosCalculos != null && idBarragemSelecionada > 0)
+{
+    <RadzenTabs @bind-SelectedIndex="@selectedTab">
+        <Tabs>
+            <RadzenTabsItem Text="Tempo de Concentração">
+                @if (dadosCalculos.tempoConcentracao != null)
+                {
+                    <RadzenCard>
+                        <RadzenFieldset Text="Dados de Entrada">
+                            <RadzenStack Gap="1rem">
+                                <RadzenRow>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Comprimento do rio principal (L):" />
+                                        <RadzenLabel Text="@dadosCalculos.tempoConcentracao.dadosEntrada.comprimentoRioPrincipal_L.ToString("F4")" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Declividade da bacia (S):" />
+                                        <RadzenLabel Text="@dadosCalculos.tempoConcentracao.dadosEntrada.declividadeBacia_S.ToString("F4")" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Área de drenagem (A):" />
+                                        <RadzenLabel Text="@dadosCalculos.tempoConcentracao.dadosEntrada.areaDrenagem_A.ToString("F4")" />
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenStack>
+                        </RadzenFieldset>
+
+                        <RadzenFieldset Text="Resultados - Tempo de Concentração">
+                            <RadzenStack Gap="1rem">
+                                <RadzenRow class="rz-text-align-center" Gap="1rem">
+                                    <RadzenColumn class="rz-background-color-info-lighter rz-p-5" Style="font-weight: bold;">
+                                        EQUAÇÕES
+                                    </RadzenColumn>
+                                    <RadzenColumn class="rz-background-color-info-lighter rz-p-5" Style="font-weight: bold;">
+                                        RESULTADO
+                                    </RadzenColumn>
+                                    <RadzenColumn class="rz-background-color-info-lighter rz-p-5" Style="font-weight: bold;">
+                                        UNIDADE
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Kirpich (1940)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.tempoConcentracao.resultados.kirpich.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Horas</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Corps Engineers (1946)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.tempoConcentracao.resultados.corpsEngineers.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Horas</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Carter (1961)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.tempoConcentracao.resultados.carter.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Horas</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Dooge (1956)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.tempoConcentracao.resultados.dooge.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Horas</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Ven te Chow (1962)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.tempoConcentracao.resultados.venTeChow.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Horas</RadzenColumn>
+                                </RadzenRow>
+                            </RadzenStack>
+                        </RadzenFieldset>
+
+                        @if (dadosCalculos.tempoConcentracao.grafico != null && dadosCalculos.tempoConcentracao.grafico.Any())
+                        {
+                            <RadzenFieldset Text="Gráfico Comparativo">
+                                <RadzenChart ColorScheme="ColorScheme.Palette" Style="height: 400px;">
+                                    <RadzenColumnSeries Data="@dadosCalculos.tempoConcentracao.grafico" 
+                                                        CategoryProperty="metodo" 
+                                                        ValueProperty="tempo" 
+                                                        Title="Tempo de Concentração (horas)">
+                                        <RadzenSeriesDataLabels Visible="true" />
+                                    </RadzenColumnSeries>
+                                    <RadzenCategoryAxis Padding="20" />
+                                    <RadzenValueAxis>
+                                        <RadzenGridLines Visible="true" />
+                                        <RadzenAxisTitle Text="Tempo (horas)" />
+                                    </RadzenValueAxis>
+                                </RadzenChart>
+                            </RadzenFieldset>
+                        }
+                    </RadzenCard>
+                }
+                else
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
+                        Dados de Tempo de Concentração não disponíveis para esta barragem.
+                    </RadzenAlert>
+                }
+            </RadzenTabsItem>
+
+            <RadzenTabsItem Text="Índice de Caracterização">
+                @if (dadosCalculos.indiceCaracterizacao != null)
+                {
+                    <RadzenCard>
+                        <RadzenFieldset Text="Dados de Entrada">
+                            <RadzenStack Gap="1rem">
+                                <RadzenRow>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Área da bacia hidrográfica (A):" />
+                                        <RadzenLabel Text="@dadosCalculos.indiceCaracterizacao.dadosEntrada.areaBaciaHidrografica.ToString("F4")" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Perímetro (P):" />
+                                        <RadzenLabel Text="@dadosCalculos.indiceCaracterizacao.dadosEntrada.perimetro.ToString("F4")" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Comprimento do rio principal (Lc):" />
+                                        <RadzenLabel Text="@dadosCalculos.indiceCaracterizacao.dadosEntrada.comprimentoRioPrincipal.ToString("F4")" />
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenStack>
+                        </RadzenFieldset>
+
+                        <RadzenFieldset Text="Resultados - Índices de Caracterização">
+                            <RadzenStack Gap="1rem">
+                                <RadzenRow class="rz-text-align-center" Gap="1rem">
+                                    <RadzenColumn class="rz-background-color-success-lighter rz-p-5" Style="font-weight: bold;">
+                                        ÍNDICES
+                                    </RadzenColumn>
+                                    <RadzenColumn class="rz-background-color-success-lighter rz-p-5" Style="font-weight: bold;">
+                                        RESULTADO
+                                    </RadzenColumn>
+                                    <RadzenColumn class="rz-background-color-success-lighter rz-p-5" Style="font-weight: bold;">
+                                        UNIDADE
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Índice de Circularidade (Ic)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.indiceCaracterizacao.resultados.indiceCircularidade.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Adimensional</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Fator de Forma (F)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.indiceCaracterizacao.resultados.fatorForma.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Adimensional</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Coeficiente de Compacidade (Kc)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.indiceCaracterizacao.resultados.coeficienteCompacidade.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Adimensional</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Densidade de Drenagem (Dd)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.indiceCaracterizacao.resultados.densidadeDrenagem.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Adimensional</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Coeficiente de Manutenção (Cm)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.indiceCaracterizacao.resultados.coeficienteManutencao.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Adimensional</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Gradiente de Canais (Gc)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.indiceCaracterizacao.resultados.gradienteCanais.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Adimensional</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Relação de Relevo (Rr)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.indiceCaracterizacao.resultados.relacaoRelevo.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Adimensional</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Índice de Rugosidade (IR)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.indiceCaracterizacao.resultados.indiceRugosidade.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Adimensional</RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn>Sinuosidade do Curso d'água (S)</RadzenColumn>
+                                    <RadzenColumn>@dadosCalculos.indiceCaracterizacao.resultados.sinuosidadeCursoDagua.ToString("F4")</RadzenColumn>
+                                    <RadzenColumn>Adimensional</RadzenColumn>
+                                </RadzenRow>
+                            </RadzenStack>
+                        </RadzenFieldset>
+
+                        @if (dadosCalculos.indiceCaracterizacao.grafico != null && dadosCalculos.indiceCaracterizacao.grafico.Any())
+                        {
+                            <RadzenFieldset Text="Gráfico Comparativo">
+                                <RadzenChart ColorScheme="ColorScheme.Palette" Style="height: 400px;">
+                                    <RadzenColumnSeries Data="@dadosCalculos.indiceCaracterizacao.grafico" 
+                                                        CategoryProperty="nome" 
+                                                        ValueProperty="valor" 
+                                                        Title="Índices de Caracterização">
+                                        <RadzenSeriesDataLabels Visible="true" />
+                                    </RadzenColumnSeries>
+                                    <RadzenCategoryAxis Padding="20" />
+                                    <RadzenValueAxis>
+                                        <RadzenGridLines Visible="true" />
+                                        <RadzenAxisTitle Text="Valor" />
+                                    </RadzenValueAxis>
+                                </RadzenChart>
+                            </RadzenFieldset>
+                        }
+                    </RadzenCard>
+                }
+                else
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
+                        Dados de Índice de Caracterização não disponíveis para esta barragem.
+                    </RadzenAlert>
+                }
+            </RadzenTabsItem>
+
+            <RadzenTabsItem Text="Vazão de Pico">
+                @if (dadosCalculos.vazaoPico != null)
+                {
+                    <RadzenCard>
+                        <RadzenFieldset Text="Dados de Entrada">
+                            <RadzenStack Gap="1rem">
+                                <RadzenRow>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Largura da barragem (Bd):" />
+                                        <RadzenLabel Text="@dadosCalculos.vazaoPico.dadosEntrada.valorLarguraBarragem.ToString("F4")" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Altura do Maciço Principal (Hbarr):" />
+                                        <RadzenLabel Text="@dadosCalculos.vazaoPico.dadosEntrada.valorHbarr.ToString("F4")" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Volume do reservatório (Vhid):" />
+                                        <RadzenLabel Text="@dadosCalculos.vazaoPico.dadosEntrada.valorVhid.ToString("F4")" />
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenStack>
+                        </RadzenFieldset>
+
+                        <RadzenFieldset Text="Resultados - Vazão de Pico">
+                            <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
+                                Os cálculos de vazão de pico serão implementados conforme as fórmulas disponíveis.
+                            </RadzenAlert>
+                        </RadzenFieldset>
+                    </RadzenCard>
+                }
+                else
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
+                        Dados de Vazão de Pico não disponíveis para esta barragem.
+                    </RadzenAlert>
+                }
+            </RadzenTabsItem>
+        </Tabs>
+    </RadzenTabs>
+}
+
+@code {
+    private int idBarragemSelecionada = 0;
+    private List<Barragem> lstBarragem = new List<Barragem>();
+    private bool carregando = false;
+    private string? erro = null;
+    private int selectedTab = 0;
+
+    private CalculosAutomaticosResponse? dadosCalculos = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        lstBarragem = await BarragemService.GetBarragemAsync();
+    }
+
+    private async Task OnBarragemChangedWrapper(object value)
+    {
+        int? intValue = value as int?;
+        if (intValue.HasValue && intValue.Value > 0)
+        {
+            idBarragemSelecionada = intValue.Value;
+            await AtualizarCalculos();
+        }
+    }
+
+    private async Task AtualizarCalculos()
+    {
+        if (idBarragemSelecionada == 0)
+        {
+            erro = "Selecione uma barragem primeiro.";
+            return;
+        }
+
+        carregando = true;
+        erro = null;
+        dadosCalculos = null;
+
+        try
+        {
+            // URL da API - ajustar conforme necessário
+            var apiUrl = "http://localhost:5204";
+            var response = await http.GetAsync($"{apiUrl}/API/BuscarCalculosAutomaticosPorBarragem?barragemId={idBarragemSelecionada}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                dadosCalculos = JsonSerializer.Deserialize<CalculosAutomaticosResponse>(content, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+            else
+            {
+                erro = $"Erro ao buscar cálculos: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro ao buscar cálculos: {ex.Message}";
+        }
+        finally
+        {
+            carregando = false;
+            StateHasChanged();
+        }
+    }
+
+    public class CalculosAutomaticosResponse
+    {
+        public bool success { get; set; }
+        public int barragemId { get; set; }
+        public TempoConcentracaoData? tempoConcentracao { get; set; }
+        public IndiceCaracterizacaoData? indiceCaracterizacao { get; set; }
+        public VazaoPicoData? vazaoPico { get; set; }
+    }
+
+    public class TempoConcentracaoData
+    {
+        public int id { get; set; }
+        public DadosEntradaTempo dadosEntrada { get; set; } = new();
+        public ResultadosTempo resultados { get; set; } = new();
+        public GraficoTempo[]? grafico { get; set; }
+    }
+
+    public class DadosEntradaTempo
+    {
+        public double comprimentoRioPrincipal_L { get; set; }
+        public double declividadeBacia_S { get; set; }
+        public double areaDrenagem_A { get; set; }
+    }
+
+    public class ResultadosTempo
+    {
+        public double kirpich { get; set; }
+        public double corpsEngineers { get; set; }
+        public double carter { get; set; }
+        public double dooge { get; set; }
+        public double venTeChow { get; set; }
+    }
+
+    public class GraficoTempo
+    {
+        public string metodo { get; set; } = "";
+        public double tempo { get; set; }
+    }
+
+    public class IndiceCaracterizacaoData
+    {
+        public int id { get; set; }
+        public DadosEntradaIndice dadosEntrada { get; set; } = new();
+        public ResultadosIndice resultados { get; set; } = new();
+        public GraficoIndice[]? grafico { get; set; }
+    }
+
+    public class DadosEntradaIndice
+    {
+        public double areaBaciaHidrografica { get; set; }
+        public double perimetro { get; set; }
+        public double comprimentoRioPrincipal { get; set; }
+        public double comprimentoVetorialRioPrincipal { get; set; }
+        public double comprimentoTotalRioBacia { get; set; }
+        public double altitudeMaximaBacia { get; set; }
+        public double altitudeMinimaBacia { get; set; }
+        public double altitudeAltimetricaBaciaM { get; set; }
+        public double comprimentoAxialBacia { get; set; }
+    }
+
+    public class ResultadosIndice
+    {
+        public double indiceCircularidade { get; set; }
+        public double fatorForma { get; set; }
+        public double coeficienteCompacidade { get; set; }
+        public double densidadeDrenagem { get; set; }
+        public double coeficienteManutencao { get; set; }
+        public double gradienteCanais { get; set; }
+        public double relacaoRelevo { get; set; }
+        public double indiceRugosidade { get; set; }
+        public double sinuosidadeCursoDagua { get; set; }
+    }
+
+    public class GraficoIndice
+    {
+        public string nome { get; set; } = "";
+        public double valor { get; set; }
+    }
+
+    public class VazaoPicoData
+    {
+        public int id { get; set; }
+        public DadosEntradaVazao dadosEntrada { get; set; } = new();
+        public ResultadosVazao resultados { get; set; } = new();
+    }
+
+    public class DadosEntradaVazao
+    {
+        public double valorLarguraBarragem { get; set; }
+        public double valorHbarr { get; set; }
+        public double valorVhid { get; set; }
+        public double valorHhid { get; set; }
+        public double valorYmed { get; set; }
+        public double valorAS { get; set; }
+    }
+
+    public class ResultadosVazao
+    {
+        public double lou { get; set; }
+        public double saintVenant { get; set; }
+        public double lemperiere { get; set; }
+        public double usbr1982 { get; set; }
+        public double soilConservationService { get; set; }
+        public double kirkpatrick { get; set; }
+        public double froehlich { get; set; }
+        public double institutionCivilEngineers { get; set; }
+        public double evans { get; set; }
+        public double costa { get; set; }
+        public double webby { get; set; }
+        public double usbr1989 { get; set; }
+        public double espanhaMinisterioMedioAmbiente { get; set; }
+        public double singhSnorrason { get; set; }
+    }
+}
+
