@@ -260,6 +260,7 @@ namespace WebAPI.Controllers
                     valorHhid = (double?)((decimal)(GetDecimalValue(caracterizacao, "cargaHidraulicaMaxima") ?? 0)),
                     valorYmed = (double?)((decimal)(GetDecimalValue(caracterizacao, "profundidadeMediaReservatorio") ?? 0)),
                     valorAS = (double?)((decimal)(GetDecimalValue(caracterizacao, "areaReservatorio") ?? 0)),
+                    valorHbarr = (double)(GetDecimalValue(caracterizacao, "alturaMacicoPrincipal") ?? GetDecimalValue(caracterizacao, "alturaMaciçoPrincipal") ?? GetDecimalValue(caracterizacao, "alturaMaciçoPrincipal") ?? 0),
                     DataCadastro = DateTime.Now
                 };
 
