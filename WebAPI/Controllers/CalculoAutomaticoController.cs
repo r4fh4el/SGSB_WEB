@@ -155,13 +155,32 @@ namespace WebAPI.Controllers
                 var client = _httpClientFactory.CreateClient();
                 client.Timeout = TimeSpan.FromSeconds(10);
 
-                var response = await client.GetAsync($"{sgsbInspUrl}/api/trpc/caracterizacao.getCaracterizacaoByBarragem?input={{\"json\":{{\"barragemId\":{barragemId}}}}}");
+                // Endpoint correto: checklists.getCaracterizacaoByBarragem (não caracterizacao.getCaracterizacaoByBarragem)
+                var response = await client.GetAsync($"{sgsbInspUrl}/api/trpc/checklists.getCaracterizacaoByBarragem?input={{\"json\":{{\"barragemId\":{barragemId}}}}}");
 
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[CalculoAutomatico] Resposta do SGSB_INSP: {content.Substring(0, Math.Min(500, content.Length))}");
+                    
+                    // A resposta do tRPC vem no formato: {"result":{"data":{"json":{...}}}}
                     var jsonDoc = JsonDocument.Parse(content);
+                    if (jsonDoc.RootElement.TryGetProperty("result", out var result) &&
+                        result.TryGetProperty("data", out var data) &&
+                        data.TryGetProperty("json", out var json))
+                    {
+                        var caracterizacaoDict = JsonSerializer.Deserialize<Dictionary<string, object?>>(json.GetRawText());
+                        Console.WriteLine($"[CalculoAutomatico] Caracterização extraída com {caracterizacaoDict?.Count ?? 0} campos");
+                        return caracterizacaoDict ?? new Dictionary<string, object?>();
+                    }
+                    
+                    // Fallback: tentar deserializar diretamente
                     return JsonSerializer.Deserialize<Dictionary<string, object?>>(content) ?? new Dictionary<string, object?>();
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[CalculoAutomatico] Erro HTTP {response.StatusCode}: {errorContent}");
                 }
             }
             catch (Exception ex)
