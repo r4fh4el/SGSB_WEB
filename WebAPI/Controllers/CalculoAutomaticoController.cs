@@ -37,7 +37,7 @@ namespace WebAPI.Controllers
         [AllowAnonymous]
         [Produces("application/json")]
         [HttpGet("/API/BuscarCalculosAutomaticosPorBarragem")]
-        public async Task<IActionResult> BuscarCalculosAutomaticosPorBarragem(int barragemId)
+        public async Task<IActionResult> BuscarCalculosAutomaticosPorBarragem([FromQuery] int barragemId)
         {
             try
             {
