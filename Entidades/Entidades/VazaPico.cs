@@ -31,6 +31,8 @@ namespace Entidades.Entidades
         [Column("DB_AS")]
         public double? valorAS{ get; set; }
 
+        [Column("DB_HBARR")]
+        public double valorHbarr { get; set; }
 
         [ForeignKey("BARRAGEM_ID")]
         [Column(Order = 1)]
